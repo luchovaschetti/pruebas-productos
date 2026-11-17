@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Arrastrá tus facturas del año y Tilde las ordena por rubro para cargar en SiRADIG.">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Tilde Ganancias</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: mismo sistema que Tilde. Cabecera con tu CUIL, hero con zona de carga, resumen con progreso,
+   una tarjeta por rubro del F.572 con los campos en el orden de SiRADIG, y abajo "A revisar" y "No deducibles". */
+:root{
+  --bg:#F2F4F8; --surface:#FFFFFF; --sunk:#E9EDF4; --ink:#0C1A33; --muted:#586680; --line:#D9E0EB;
+  --brand:#1746D1; --brand-soft:#E4EAFC; --on-brand:#FFFFFF;
+  --ok:#0B7D56; --ok-soft:#DDF3EA; --warn:#96610A; --warn-soft:#FBEFD2; --bad:#B8322A; --bad-soft:#FBE3E0;
+  --shadow:0 1px 2px rgba(12,26,51,.06),0 8px 24px -12px rgba(12,26,51,.18);
+  --display:"Bricolage Grotesque","IBM Plex Sans",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0A111E; --surface:#111A2B; --sunk:#182338; --ink:#E7ECF6; --muted:#93A1BA; --line:#25324B;
+  --brand:#7C9BFF; --brand-soft:#1B2A52; --on-brand:#0A111E;
+  --ok:#45CF99; --ok-soft:#123327; --warn:#E8B95A; --warn-soft:#3A2D10; --bad:#F27C72; --bad-soft:#3E1B18;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6); color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0A111E; --surface:#111A2B; --sunk:#182338; --ink:#E7ECF6; --muted:#93A1BA; --line:#25324B;
+  --brand:#7C9BFF; --brand-soft:#1B2A52; --on-brand:#0A111E;
+  --ok:#45CF99; --ok-soft:#123327; --warn:#E8B95A; --warn-soft:#3A2D10; --bad:#F27C72; --bad-soft:#3E1B18;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6); color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
+.wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:6px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-block:18px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;font:700 20px/1 var(--display);letter-spacing:-.01em}
+.brand svg{width:28px;height:28px}
+.brand small{font:600 11px/1 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--brand);background:var(--brand-soft);padding:5px 8px;border-radius:6px}
+.me{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.me label{display:flex;align-items:center;gap:8px}
+.me input{width:150px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-family:var(--mono);font-size:14px;color:var(--ink)}
+.me input.badv{border-color:var(--bad)}
+.priv{display:flex;align-items:center;gap:6px}
+.priv::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok)}
+
+.hero{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:32px;align-items:center}
+h1{font:700 clamp(30px,4.8vw,48px)/1.05 var(--display);letter-spacing:-.025em;margin:0 0 14px;text-wrap:balance}
+h1 em{font-style:normal;color:var(--brand)}
+.lead{font-size:17px;color:var(--muted);max-width:48ch;margin:0}
+.drop{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;cursor:pointer;position:relative;
+  background:var(--surface);border:1.5px dashed var(--brand);border-radius:16px;padding:28px 20px;box-shadow:var(--shadow);transition:background .15s}
+.drop.over{background:var(--brand-soft)}
+.drop svg{width:38px;height:38px;color:var(--brand)}
+.drop strong{font:600 18px/1.2 var(--display)}
+.drop small{color:var(--muted);font-size:13px}
+.drop input{position:absolute;width:1px;height:1px;opacity:0}
+.progress{font-size:13px;color:var(--brand);font-weight:600;min-height:20px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);background:var(--surface);
+  border-radius:10px;padding:9px 14px;font-weight:600;font-size:14px;cursor:pointer;min-height:40px}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+.note{font-size:13px;color:var(--warn);background:var(--warn-soft);border-radius:10px;padding:9px 12px}
+.note.info{color:var(--brand);background:var(--brand-soft)}
+
+.sum{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.sum div{padding:14px 16px;border-left:1px solid var(--line);min-width:0}
+.sum div:first-child{border-left:0}
+.sum dt{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.sum dd{margin:4px 0 0;font:600 18px/1.2 var(--mono);font-variant-numeric:tabular-nums}
+.sum .alert dd{color:var(--warn)}
+.prog{grid-column:1/-1;border-left:0!important;border-top:1px solid var(--line);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.bar{flex:1;min-width:160px;height:8px;background:var(--sunk);border-radius:99px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ok);border-radius:99px;transition:width .3s}
+.prog span{font-size:13px;color:var(--muted)}
+.prog b{color:var(--ink)}
+
+.howto{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.howto section{border-top:2px solid var(--ink);padding-top:12px}
+.howto h3{font:700 15px/1.2 var(--display);margin:0 0 4px}
+.howto p{margin:0;color:var(--muted);font-size:14px}
+
+h2{font:700 22px/1.1 var(--display);margin:0;letter-spacing:-.01em}
+.secthead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.secthead p{margin:0;color:var(--muted);font-size:14px}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.rubros{display:flex;flex-direction:column;gap:16px}
+.rubro{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.rhead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid var(--line)}
+.rhead h3{font:700 17px/1.2 var(--display);margin:0}
+.path{font-size:12.5px;color:var(--muted);margin-top:4px}
+.path span{color:var(--ink);font-weight:500}
+.rtot{text-align:right}
+.rtot b{display:block;font:600 17px/1.2 var(--mono);font-variant-numeric:tabular-nums}
+.rtot small{font-size:12px;color:var(--muted)}
+.rule{font-size:13px;color:var(--muted);background:var(--sunk);padding:8px 16px}
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:14px;padding:28px 16px;text-align:center;color:var(--muted)}
+
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:820px}
+th{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);text-align:left;padding:9px 12px;border-bottom:1px solid var(--line)}
+th.r,td.r{text-align:right}
+td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle;font-size:14px}
+tr:last-child td{border-bottom:0}
+tr.done td{opacity:.5}
+tr.done td:first-child{opacity:1}
+.prest{font-weight:600;display:block}
+.nm{width:100%;min-width:150px;background:transparent;border:1px dashed var(--line);border-radius:6px;padding:3px 6px;font-size:13.5px;font-weight:600}
+.sub{display:block;font-size:12px;color:var(--muted);font-weight:400}
+.tag{font:600 10px/1 var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:2px 5px;margin-left:6px;vertical-align:middle}
+.cp{display:inline-flex;align-items:center;gap:6px;background:none;border:1px solid transparent;border-radius:6px;padding:3px 6px;margin:-3px -6px;cursor:pointer;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:13.5px;white-space:nowrap}
+.cp:hover{border-color:var(--line);background:var(--sunk)}
+.cp svg{width:13px;height:13px;color:var(--muted);flex:none}
+.chk{width:20px;height:20px;accent-color:var(--ok);cursor:pointer}
+.mv{font-size:12px;border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:2px 4px;margin-top:4px;max-width:100%;color:var(--muted)}
+
+.side{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.panel h3{font:700 16px/1.2 var(--display);margin:0;padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+.panel h3 small{margin-left:auto;font:500 13px/1 var(--mono);color:var(--muted)}
+.panel ul{list-style:none;margin:0;padding:0}
+.panel li{padding:11px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;font-size:14px}
+.panel li:last-child{border-bottom:0}
+.panel li>span:first-child{min-width:0}
+.panel li>.num{white-space:nowrap;flex:none}
+.panel .why{display:block;font-size:12.5px;color:var(--muted)}
+.panel .none{color:var(--muted);font-size:13.5px}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.dot.warn{background:var(--warn)} .dot.mute{background:var(--muted)}
+.fine{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:16px;margin:0}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);
+  padding:10px 16px;border-radius:10px;font-size:14px;font-weight:500;box-shadow:var(--shadow);max-width:calc(100% - 32px);z-index:20}
+
+@media (max-width:760px){
+  .hero,.side,.howto{grid-template-columns:1fr}
+  .sum{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .sum div:nth-child(3){border-left:0}
+  .sum div:nth-child(n+3){border-top:1px solid var(--line)}
+  .rtot{text-align:left}
+  .acts{width:100%} .acts .btn{flex:1}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 28 28" aria-hidden="true"><rect x="1.5" y="1.5" width="25" height="25" rx="6" fill="var(--brand)"/><path d="M8 14.5l4.2 4.2L20.5 9.8" fill="none" stroke="var(--on-brand)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Tilde <small>Ganancias</small>
+    </div>
+    <div class="me">
+      <label for="cuil">Tu CUIL <input id="cuil" inputmode="numeric" placeholder="20-12345678-9" autocomplete="off"></label>
+      <span class="priv">Todo se procesa en tu navegador</span>
+    </div>
+  </header>
+
+  <div class="hero">
+    <div>
+      <h1>Arrastrá tus facturas del año.<br><em>Te decimos qué cargar en SiRADIG.</em></h1>
+      <p class="lead">Tilde lee el QR de ARCA de cada factura, controla que esté a tu nombre, la ubica en su rubro del F.572 y te deja cada dato listo para copiar en el orden en que lo pide SiRADIG.</p>
+    </div>
+    <label class="drop" id="drop" for="file">
+      <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5h13l7 7v21a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><path d="M24 5v7h7"/><path d="M20 28V18m0 0l-4 4m4-4l4 4"/></svg>
+      <strong>Soltá acá las facturas</strong>
+      <small>Alquiler, médicos, colegio, prepaga, seguro de vida. PDF, JPG o PNG.</small>
+      <span class="btn primary">Elegir archivos</span>
+      <span class="progress" id="progress" role="status" aria-live="polite"></span>
+      <input id="file" type="file" accept="application/pdf,image/*" multiple>
+    </label>
+  </div>
+
+  <div class="note" id="exNote">Lo que ves abajo son ejemplos inventados. Se borran cuando subís tu primera factura.</div>
+  <div class="note info" id="cuilNote" hidden>Cargá tu CUIL arriba: sin él no se puede controlar que cada factura esté a tu nombre.</div>
+
+  <dl class="sum">
+    <div><dt>Para cargar</dt><dd id="sCount"></dd></div>
+    <div><dt>Monto a informar</dt><dd id="sTotal"></dd></div>
+    <div id="sRevBox"><dt>A revisar</dt><dd id="sRev"></dd></div>
+    <div><dt>No deducibles</dt><dd id="sNo"></dd></div>
+    <div class="prog"><div class="bar"><i id="pBar"></i></div><span id="pTxt"></span></div>
+  </dl>
+
+  <div class="howto">
+    <section><h3>Entrá a SiRADIG</h3><p>Con tu clave fiscal, en SiRADIG – Trabajador, abrí el formulario del período que corresponda.</p></section>
+    <section><h3>Elegí el rubro</h3><p>En "Deducciones y desgravaciones", agregá el rubro que te indica cada tarjeta de abajo.</p></section>
+    <section><h3>Copiá y tildá</h3><p>Tocá cada dato para copiarlo, pegalo en el campo y marcá la fila como cargada.</p></section>
+  </div>
+
+  <div class="secthead">
+    <div><h2>Para cargar en SiRADIG</h2></div>
+    <div class="acts"><button class="btn" id="bCopy">Copiar resumen</button><button class="btn ghost" id="bClear">Vaciar</button></div>
+  </div>
+  <p class="secthead" style="margin-top:-18px"><span style="color:var(--muted);font-size:14px">Informá el monto facturado: SiRADIG aplica el porcentaje y el tope de cada rubro.</span></p>
+  <div class="rubros" id="rubros"></div>
+
+  <div class="side">
+    <div class="panel" id="pRev"></div>
+    <div class="panel" id="pNo"></div>
+  </div>
+
+  <p class="fine">Tilde no se conecta con ARCA ni te pide clave fiscal: vos cargás en SiRADIG con los datos ya ordenados. La clasificación por rubro es automática y puede equivocarse: si movés una factura, Tilde recuerda ese rubro para el mismo CUIT. Los porcentajes y topes los aplica SiRADIG según la normativa vigente. Ante dudas sobre un caso, consultá con tu contador.</p>
+</div>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+(function(){
+"use strict";
+/* PARSER-START: lógica pura, sin DOM. */
+var TIPOS={1:["Factura","A"],2:["Nota de débito","A"],3:["Nota de crédito","A"],6:["Factura","B"],7:["Nota de débito","B"],8:["Nota de crédito","B"],
+  11:["Factura","C"],12:["Nota de débito","C"],13:["Nota de crédito","C"],51:["Factura","M"],52:["Nota de débito","M"],53:["Nota de crédito","M"],
+  17:["Liq. servicios públicos","A"],18:["Liq. servicios públicos","B"],
+  201:["Factura de crédito","A"],202:["Nota de débito FCE","A"],203:["Nota de crédito FCE","A"],206:["Factura de crédito","B"],207:["Nota de débito FCE","B"],208:["Nota de crédito FCE","B"],
+  211:["Factura de crédito","C"],212:["Nota de débito FCE","C"],213:["Nota de crédito FCE","C"]};
+var LETRA_FACT={A:1,B:6,C:11,M:51};
+function num(s){ if(s==null) return null; s=String(s).replace(/[^\d.,-]/g,""); if(!s) return null;
+  var lc=s.lastIndexOf(","), ld=s.lastIndexOf(".");
+  if(lc>-1&&ld>-1){ if(lc>ld) s=s.replace(/\./g,"").replace(",","."); else s=s.replace(/,/g,"") }
+  else if(lc>-1){ s=(s.match(/,/g).length>1||/,\d{3}$/.test(s)&&!/^\d{1,3},\d{3}$/.test(s))?s.replace(/,/g,""):s.replace(",",".") }
+  else if(ld>-1&&(s.match(/\./g).length>1||/\.\d{3}$/.test(s))) s=s.replace(/\./g,"");
+  var n=parseFloat(s); return isFinite(n)?n:null }
+function cuitDigits(c){return String(c||"").replace(/\D/g,"")}
+function cuitOk(c){ c=cuitDigits(c); if(c.length!==11) return false; var w=[5,4,3,2,7,6,5,4,3,2],s=0;
+  for(var i=0;i<10;i++) s+=(+c[i])*w[i]; var d=11-(s%11); if(d===11) d=0; return d!==10 && d===+c[10] }
+function isoDate(d,m,y){ d=+d; m=+m; y=+y; if(y<100) y+=2000; if(!(d>=1&&d<=31&&m>=1&&m<=12&&y>=2000&&y<=2100)) return null;
+  return y+"-"+String(m).padStart(2,"0")+"-"+String(d).padStart(2,"0") }
+function parseQR(text){
+  var m=/[?&]p=([\s\S]+)/.exec(text||""); if(!m) return null;
+  try{
+    var b=decodeURIComponent(m[1].replace(/\s+/g,"").split(/[&#]/)[0]).replace(/-/g,"+").replace(/_/g,"/"); while(b.length%4) b+="=";
+    var raw=atob(b), js; try{js=decodeURIComponent(escape(raw))}catch(e){js=raw}
+    var o=JSON.parse(js); if(o.cuit==null||o.importe==null) return null;
+    var f=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(o.fecha||"")), f2=/^(\d{4})(\d{2})(\d{2})$/.exec(String(o.fecha||""));
+    return {fecha:f?o.fecha:f2?f2[1]+"-"+f2[2]+"-"+f2[3]:null,cuit:cuitDigits(o.cuit),pv:o.ptoVta!=null?String(o.ptoVta):"",tipoCod:+o.tipoCmp||null,
+      nro:o.nroCmp!=null?String(o.nroCmp):"",total:+o.importe,moneda:String(o.moneda||"").trim()||"PES",ctz:+o.ctz||1,
+      cae:o.codAut!=null?String(o.codAut):"",tipoAut:o.tipoCodAut==="A"?"CAEA":"CAE",
+      docTipo:+o.tipoDocRec||null,docNro:o.nroDocRec!=null?cuitDigits(o.nroDocRec):""};
+  }catch(e){return null}
+}
+function parseText(t){
+  t=String(t||"").replace(/ /g," "); var o={}, m, NUM="(-?\\d[\\d.,]*\\d|\\d)";
+  m=/Fecha\s+(?:de\s+)?Emisi.?n\s*:?[^\d\n]{0,30}\n?[^\d\n]{0,30}(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{2,4})/i.exec(t)
+    ||/\bFECHA\s*:\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{2,4})/i.exec(t);
+  if(m) o.fecha=isoDate(m[1],m[2],m[3]);
+  m=/Punto\s+de\s+Venta\s*:?\s*(\d{1,5})\s+Comp\.?\s*Nro\.?\s*:?\s*(\d{1,8})/i.exec(t)
+    ||/(\d{4,5})\s+Comp\.?\s*Nro\.?\s*:?\s*(\d{1,8})/i.exec(t)
+    ||/(?:N\s*[°ºo]\.?|Nro\.?|N[uú]mero|Liquidaci.?n\s*N?[°º]?)\s*:?\s*(\d{4,5})\s*-\s*(\d{8})\b/i.exec(t)
+    ||/(?:^|\n)\s*(\d{4,5})-(\d{8})\s*(?:\n|$)/.exec(t);
+  if(m){o.pv=String(+m[1]); o.nro=String(+m[2])}
+  m=/\bCOD(?:IGO)?\.?\s*(?:N\s*[°º]\.?|#)?\s*:?\s*0*(\d{1,3})\b/i.exec(t);
+  if(m&&TIPOS[+m[1]]) o.tipoCod=+m[1];
+  else if((m=/\b(?:Factura|Tipo)[ \t]+([ABCM])\b(?![.\d])/i.exec(t))) o.tipoCod=LETRA_FACT[m[1].toUpperCase()];
+  else if(/Liquidaci.?n\s+de\s+servicios\s+p.?blicos/i.test(t)) o.tipoCod=18;
+  m=new RegExp("(?<![A-Za-z])(?:Importe\\s+Total|Total\\s+a\\s+pagar|TOTAL)\\s*:?[ \\t]*(?:\\$|ARS)?[ \\t]*"+NUM,"i").exec(t);
+  if(m) o.total=num(m[1]);
+  m=/C\.?\s?A\.?\s?E\.?\s*(?:N\s*[°ºo]\.?)?\s*:?\s*(\d{14})\b/i.exec(t);
+  if(m){o.cae=m[1]; o.tipoAut="CAE"}
+  else if((m=/C\.?\s?E\.?\s?S\.?\s?P\.?\s*(?:N\S{0,2})?\s*:?\s*(\d{14})\b/i.exec(t)||/\b(\d{14})\s*C\.?\s?E\.?\s?S\.?\s?P\b/i.exec(t))){o.cae=m[1]; o.tipoAut="CESP"}
+  var seen={}, list=[], re=/\b(\d{2})-?(\d{8})-?(\d)\b/g;
+  while((m=re.exec(t))){ var c=m[1]+m[2]+m[3]; if(cuitOk(c)&&!seen[c]){seen[c]=1; list.push(c)} }
+  o.cuits=list; if(list.length===1) o.cuit=list[0];
+  return o;
+}
+/* Rubros del F.572 y reglas de clasificación por palabras del comprobante. */
+var RUBROS={
+  alquiler:{nombre:"Alquiler de inmuebles destinados a casa habitación",ruta:"Deducciones y desgravaciones › Alquiler de inmuebles destinados a casa habitación",
+    regla:"Requisitos: no ser propietario de otro inmueble y que el contrato esté a tu nombre. Se carga mes por mes con el CUIT del locador.",col:"Locador"},
+  educacion:{nombre:"Gastos de educación",ruta:"Deducciones y desgravaciones › Gastos de educación",
+    regla:"Para hijos o hijas a cargo. Tienen que estar cargados en Cargas de familia antes de agregar este rubro, y vas a elegir a quién corresponde cada factura.",col:"Establecimiento"},
+  medicos:{nombre:"Gastos médicos y paramédicos",ruta:"Deducciones y desgravaciones › Gastos médicos y paramédicos",
+    regla:"Honorarios de profesionales de la salud que la prepaga no te reintegró. Cargá cada factura con el CUIT del prestador.",col:"Prestador"},
+  prepaga:{nombre:"Cuotas médico asistenciales",ruta:"Deducciones y desgravaciones › Cuotas médico asistenciales",
+    regla:"La parte de la cuota que pagás vos. Si la prepaga ya informó el pago, puede aparecer precargada: no la dupliques.",col:"Prepaga"},
+  seguro:{nombre:"Primas de seguro para el caso de muerte",ruta:"Deducciones y desgravaciones › Primas de seguro para el caso de muerte",
+    regla:"Seguros de vida contratados por vos, no los que paga tu empleador.",col:"Aseguradora"}
+};
+var ORDEN=["alquiler","educacion","medicos","prepaga","seguro"];
+var REGLAS=[
+  ["no",/\b(movistar|telefonica|telecom|claro amx|personal flow|fibertel|starlink|directv|camuzzi|metrogas|naturgy|litoral gas|edes|edenor|edesur|epec|edea|eden|absa|aysa|aguas bonaerenses|aguas cordobesas|osse|mercadolibre|mercado libre)\b/],
+  ["prepaga",/\b(osde|swiss medical|galeno|medife|omint|sancor salud|prevencion salud|accord salud|avalian|hominis|medicus|federada salud|jerarquicos|plan de salud|cuota (medica|social|plan)|medicina prepaga|cobertura medica|plan medico)\b/],
+  ["seguro",/\bseguro de vida\b|\bvida (individual|colectivo)\b/],
+  ["educacion",/\b(jardin|colegio|escuela|instituto educativo|educativ|educacion|matricula|dipregep|diegep|ensenanza|preescolar|primaria|secundaria|nivel inicial|cuota escolar|arancel)\b/],
+  ["alquiler",/\b(alquiler|locacion|locador|locatario|inmobiliaria|canon locativo|contrato de locacion)\b/],
+  ["medicos",/\b(honorarios (medicos|profesionales)|consulta medica|odontolog\w*|ortodonc\w*|psicolog\w*|psiquiatr\w*|kinesiolog\w*|kinesio|fonoaudiolog\w*|nutricionista|traumatolog\w*|pediatr\w*|ginecolog\w*|dermatolog\w*|oftalmolog\w*|cardiolog\w*|medico|medica|clinica|sanatorio|sesion(es)? de|terapia|analisis clinicos|bioquimic\w*|fisiatr\w*|psicopedagog\w*|estimulacion temprana|prestacion(es)? de salud)\b/],
+  ["no",/\b(gas natural|servicio de gas|energia electrica|telefonia|abono (de )?internet|materiales|construccion|ferreteria|corralon|supermercado|combustible|nafta|preservativ\w*|electrodomestic\w*|liquidacion de servicios)\b/]
+];
+function norm(s){return String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"")}
+function clasificar(texto,tipoCod){
+  if(tipoCod===17||tipoCod===18) return {rubro:"no",motivo:"Liquidación de servicios públicos: no es deducible."};
+  var t=norm(texto);
+  for(var i=0;i<REGLAS.length;i++){ var m=REGLAS[i][1].exec(t); if(m) return {rubro:REGLAS[i][0],pista:m[0]} }
+  return {rubro:null};
+}
+/* PARSER-END */
+
+var $=function(id){return document.getElementById(id)};
+var items=[], seq=0, busy=false, done={}, agenda={}, memo={};
+function load(k){try{return JSON.parse(localStorage.getItem(k)||"{}")||{}}catch(e){return {}}}
+function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+agenda=load("tilde.agenda"); memo=load("tilde.rubros");
+var cuil=""; try{cuil=localStorage.getItem("tilde.cuil")||""}catch(e){}
+
+var fmt=new Intl.NumberFormat("es-AR",{minimumFractionDigits:2,maximumFractionDigits:2});
+var MESES=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+function money(n){return n==null?"—":"$ "+fmt.format(n)}
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function pad(n,l){n=String(n==null?"":n).replace(/\D/g,""); return n?n.padStart(l,"0"):""}
+function cuitFmt(c){c=cuitDigits(c); return c.length===11?c.slice(0,2)+"-"+c.slice(2,10)+"-"+c.slice(10):c}
+function dmy(iso){ if(!iso) return ""; var p=iso.split("-"); return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:iso }
+function mes(iso){ if(!iso) return "—"; var p=iso.split("-"); return MESES[+p[1]-1]+" "+p[0] }
+function nroFmt(it){var a=pad(it.pv,5),b=pad(it.nro,8); return (a&&b)?a+"-"+b:""}
+function tipoTxt(it){var t=TIPOS[it.tipoCod]; return t?t[0]+" "+t[1]:"Comprobante"}
+function nombre(it){return it.ejemplo?it.nombre:(agenda[cuitDigits(it.cuit)]||"")}
+function signo(it){var t=TIPOS[it.tipoCod]; return t&&/crédito/i.test(t[0])&&!/^Factura/.test(t[0])?-1:1}
+function mkCuit(base){ for(var k=0;k<10;k++){ for(var d=0;d<10;d++){ if(cuitOk(base+d)) return base+d } base=String(+base+1) } return base+"0" }
+function toast(m){var t=$("toast"); t.textContent=m; t.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(function(){t.hidden=true},3600)}
+
+/* ---------- a tu nombre ---------- */
+function receptor(it){
+  var me=cuitDigits(cuil); if(me.length!==11) return "?";
+  var dni=me.slice(2,10);
+  if(it.docNro){ var d=it.docNro.replace(/^0+/,""); return (d===me||d===dni.replace(/^0+/,""))?"tuyo":"otro" }
+  var t=it.texto||""; if(!t) return "?";
+  var flat=t.replace(/[\s.\-]/g,"");
+  return (flat.indexOf(me)>-1||new RegExp("(?:^|\\D)"+dni.replace(/^0+/,"")+"(?:\\D|$)").test(flat))?"tuyo":"?";
+}
+/* ---------- estado de cada factura ---------- */
+function evaluar(it){
+  it.recep=it.ejemplo?(it.recepEj||"tuyo"):receptor(it);
+  var r=it.rubroManual||memo[cuitDigits(it.cuit)]||it.rubroAuto;
+  it.rubro=r||null; it.motivos=[];
+  if(!it.rubroManual&&it.recep==="otro"&&it.docNro&&it.docNro.length===11&&/^3[034]/.test(it.docNro)){
+    it.estado="no"; it.rubro="no"; it.motivos.push("Está a nombre de una empresa (CUIT "+cuitFmt(it.docNro)+"): es una compra de la empresa, no tuya."); return }
+  if(r==="no"){ it.estado="no"; it.motivos.push(it.motivoNo||"No corresponde a un rubro deducible."); return }
+  if(!r) it.motivos.push("No se pudo identificar el rubro. Elegilo vos.");
+  if(it.recep==="otro") it.motivos.push("Está a nombre de otra persona (doc. "+it.docNro+"). Solo la puede deducir quien figura en la factura.");
+  else if(it.recep==="?"&&cuitDigits(cuil).length===11) it.motivos.push("No se pudo confirmar que esté a tu nombre.");
+  if(!it.cuit||!cuitOk(it.cuit)) it.motivos.push("Falta el CUIT del prestador o no es válido.");
+  if(it.total==null) it.motivos.push("Falta el importe.");
+  if(!it.fecha) it.motivos.push("Falta la fecha.");
+  if(it.dup) it.motivos.push("Está repetida en la lista.");
+  it.estado=it.motivos.length?"rev":"ok";
+}
+function evaluarTodo(){
+  var seen={};
+  items.forEach(function(it){ var k=cuitDigits(it.cuit)+"|"+it.tipoCod+"|"+pad(it.pv,5)+"|"+pad(it.nro,8); it.dup=!!(it.cuit&&it.nro&&seen[k]); seen[k]=1 });
+  items.forEach(evaluar);
+}
+
+/* ---------- lectura (igual que Tilde) ---------- */
+function scanQR(src,w,h){
+  if(typeof jsQR==="undefined") return null;
+  var regs=[[0,0,1,1],[0,.5,.6,.5],[0,.55,1,.45],[.4,.5,.6,.5],[0,0,.6,.5],[.4,0,.6,.5],[0,.7,.4,.3],[.6,.7,.4,.3],[.2,.25,.6,.5]];
+  var cv=document.createElement("canvas"), cx=cv.getContext("2d",{willReadFrequently:true});
+  for(var i=0;i<regs.length;i++){
+    var g=regs[i], sw=w*g[2], sh=h*g[3], k=Math.min(2,1800/Math.max(sw,sh));
+    cv.width=Math.max(1,Math.round(sw*k)); cv.height=Math.max(1,Math.round(sh*k));
+    cx.fillStyle="#fff"; cx.fillRect(0,0,cv.width,cv.height); cx.drawImage(src,w*g[0],h*g[1],sw,sh,0,0,cv.width,cv.height);
+    var q=jsQR(cx.getImageData(0,0,cv.width,cv.height).data,cv.width,cv.height,{inversionAttempts:"attemptBoth"});
+    if(q&&q.data){ var p=parseQR(q.data); if(p) return p }
+  }
+  return null;
+}
+function qrFromCanvas(c){
+  if(typeof jsQR==="undefined") return null;
+  var tries=[[1,0],[2,.1],[3,.1],[4,.1]];
+  for(var i=0;i<tries.length;i++){
+    var s=tries[i][0], P=Math.round(Math.max(c.width,c.height)*s*tries[i][1]), cv=document.createElement("canvas");
+    cv.width=c.width*s+2*P; cv.height=c.height*s+2*P; var cx=cv.getContext("2d",{willReadFrequently:true});
+    cx.fillStyle="#fff"; cx.fillRect(0,0,cv.width,cv.height); cx.imageSmoothingEnabled=false; cx.drawImage(c,P,P,c.width*s,c.height*s);
+    var q=jsQR(cx.getImageData(0,0,cv.width,cv.height).data,cv.width,cv.height,{inversionAttempts:"attemptBoth"});
+    if(q&&q.data){ var p=parseQR(q.data); if(p) return p }
+  }
+  return null;
+}
+function imgToCanvas(o){
+  if(!o||!o.width||!o.height) return null;
+  var c=document.createElement("canvas"); c.width=o.width; c.height=o.height; var cx=c.getContext("2d");
+  cx.fillStyle="#fff"; cx.fillRect(0,0,c.width,c.height);
+  if(o.bitmap){ cx.drawImage(o.bitmap,0,0); return c }
+  if(!o.data) return null;
+  var id=cx.createImageData(o.width,o.height), d=id.data, src=o.data, n=o.width*o.height;
+  if(o.kind===3) d.set(src.subarray(0,n*4));
+  else if(o.kind===2){ for(var i=0;i<n;i++){d[i*4]=src[i*3];d[i*4+1]=src[i*3+1];d[i*4+2]=src[i*3+2];d[i*4+3]=255} }
+  else if(o.kind===1){ var rb=(o.width+7)>>3; for(var y=0;y<o.height;y++)for(var x=0;x<o.width;x++){var bit=(src[y*rb+(x>>3)]>>(7-(x&7)))&1, v=bit?255:0, k=(y*o.width+x)*4; d[k]=d[k+1]=d[k+2]=v; d[k+3]=255} }
+  else return null;
+  cx.putImageData(id,0,0); return c;
+}
+function getObj(page,name){ return new Promise(function(ok){
+  var store=/^g_/.test(name)?page.commonObjs:page.objs, fin=false, t=setTimeout(function(){if(!fin){fin=true;ok(null)}},1500);
+  try{ store.get(name,function(o){ if(!fin){fin=true;clearTimeout(t);ok(o)} }) }catch(e){ fin=true; clearTimeout(t); ok(null) } }) }
+async function qrFromImages(page){
+  var ops=await page.getOperatorList(), OPS=pdfjsLib.OPS, seen={};
+  for(var i=0;i<ops.fnArray.length;i++){
+    var fn=ops.fnArray[i], a=ops.argsArray[i], o=null;
+    if(fn===OPS.paintImageXObject||fn===OPS.paintImageXObjectRepeat){ var nm=a&&a[0]; if(!nm||seen[nm]) continue; seen[nm]=1; o=await getObj(page,nm) }
+    else if(fn===OPS.paintInlineImageXObject) o=a&&a[0];
+    else continue;
+    if(!o) continue; var r=o.width/o.height;
+    if(o.width<21||r<.8||r>1.25) continue;
+    var c=imgToCanvas(o), p=c&&qrFromCanvas(c); if(p) return p;
+  }
+  return null;
+}
+async function qrFromPage(page,scale,crisp){
+  var vp=page.getViewport({scale:scale}), cv=document.createElement("canvas"); cv.width=Math.ceil(vp.width); cv.height=Math.ceil(vp.height);
+  var cx=cv.getContext("2d"); cx.fillStyle="#fff"; cx.fillRect(0,0,cv.width,cv.height);
+  if(crisp){ cx.imageSmoothingEnabled=false; try{ Object.defineProperty(cx,"imageSmoothingEnabled",{get:function(){return false},set:function(){},configurable:true}) }catch(e){} }
+  await page.render({canvasContext:cx,viewport:vp}).promise; return scanQR(cv,cv.width,cv.height);
+}
+async function findQR(doc){
+  var pages=[1]; if(doc.numPages>1) pages.push(doc.numPages);
+  for(var i=0;i<pages.length;i++){ var pg=await doc.getPage(pages[i]), q=null;
+    try{ q=await qrFromImages(pg) }catch(e){}
+    if(!q){ try{ q=await qrFromPage(pg,2.5,false) }catch(e){} }
+    if(!q){ try{ q=await qrFromPage(pg,4,true) }catch(e){} }
+    if(q) return q }
+  return null;
+}
+function readBuf(file){return new Promise(function(ok,ko){var f=new FileReader(); f.onload=function(){ok(f.result)}; f.onerror=function(){ko(f.error)}; f.readAsArrayBuffer(file)})}
+async function pdfText(doc){
+  var out="", n=Math.min(doc.numPages,3);
+  for(var p=1;p<=n;p++){ var tc=await (await doc.getPage(p)).getTextContent(); tc.items.forEach(function(it){out+=it.str+(it.hasEOL?"\n":" ")}); out+="\n" }
+  return out;
+}
+async function readPdf(file){
+  if(typeof pdfjsLib==="undefined") throw new Error("pdf");
+  pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  var doc=await pdfjsLib.getDocument({data:await readBuf(file)}).promise, qr=null, text="";
+  try{ qr=await findQR(doc) }catch(e){}
+  try{ text=await pdfText(doc) }catch(e){}
+  return build(file,qr,text);
+}
+function readImg(file){return new Promise(function(ok,ko){
+  var url=URL.createObjectURL(file), im=new Image();
+  im.onload=function(){ var qr=null; try{qr=scanQR(im,im.naturalWidth,im.naturalHeight)}catch(e){} URL.revokeObjectURL(url); ok(build(file,qr,"")) };
+  im.onerror=function(){URL.revokeObjectURL(url); ko(new Error("img"))}; im.src=url; })}
+function build(file,qr,text){
+  var tx=parseText(text), it={id:++seq,archivo:file.name,texto:text};
+  if(qr){ it.origen="QR"; ["fecha","cuit","pv","nro","tipoCod","total","moneda","cae","docTipo","docNro"].forEach(function(k){it[k]=qr[k]}); if(!it.fecha) it.fecha=tx.fecha||null }
+  else { it.origen=text?"Texto":"Sin datos"; ["fecha","cuit","pv","nro","tipoCod","total","cae"].forEach(function(k){it[k]=tx[k]!=null?tx[k]:null}); it.moneda="PES"; it.docNro="" }
+  var c=clasificar(file.name+" "+text+" "+(agenda[cuitDigits(it.cuit)]||""),it.tipoCod);
+  it.rubroAuto=c.rubro; it.motivoNo=c.motivo||(c.pista?"No es un rubro deducible (se detectó “"+c.pista+"”).":"");
+  return it;
+}
+async function handle(files){
+  files=Array.prototype.slice.call(files||[]); if(!files.length||busy) return; busy=true;
+  if(items.some(function(x){return x.ejemplo})){ items=[]; done={}; $("exNote").hidden=true }
+  var bad=0, heic=0;
+  for(var i=0;i<files.length;i++){
+    var f=files[i]; $("progress").textContent="Leyendo "+(i+1)+" de "+files.length+"…";
+    if(/\.(heic|heif)$/i.test(f.name)||/hei[cf]/i.test(f.type)){ heic++; continue }
+    try{ items.push(/\.pdf$/i.test(f.name)||f.type==="application/pdf"?await readPdf(f):await readImg(f)) }catch(e){ bad++ }
+    evaluarTodo(); render();
+  }
+  $("progress").textContent=""; busy=false;
+  var ok=files.length-bad-heic, msg=(ok===1?"1 factura leída.":ok+" facturas leídas.");
+  if(heic) msg+=" "+heic+" en HEIC del iPhone: exportalas como JPG.";
+  if(bad) msg+=" "+bad+" no se pudieron abrir.";
+  toast(msg);
+}
+
+/* ---------- vista ---------- */
+var ICO='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="5" y="5" width="8.5" height="8.5" rx="1.5"/><path d="M10.5 5V3.5A1.5 1.5 0 0 0 9 2H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5H5"/></svg>';
+function cp(show,val){return val?'<button class="cp" data-v="'+esc(val)+'" aria-label="Copiar '+esc(show)+'">'+esc(show)+ICO+'</button>':'<span class="sub">—</span>'}
+function mover(it){
+  var o='<select class="mv" data-mv="'+it.id+'" aria-label="Cambiar rubro"><option value="">Cambiar rubro…</option>';
+  ORDEN.forEach(function(k){ if(k!==it.rubro) o+='<option value="'+k+'">'+esc(RUBROS[k].nombre)+'</option>' });
+  if(it.rubro!=="no") o+='<option value="no">No es deducible</option>';
+  return o+'</select>';
+}
+function prestador(it){
+  var n=nombre(it);
+  return (it.ejemplo?'<span class="prest">'+esc(n)+'<span class="tag">Ejemplo</span></span>':
+    '<input class="nm" data-nm="'+esc(cuitDigits(it.cuit))+'" value="'+esc(n)+'" placeholder="Nombre del prestador" aria-label="Nombre del prestador">')+
+    '<span class="sub">'+esc(it.archivo)+'</span>'+mover(it);
+}
+function row(it){
+  var d=!!done[it.id], amt=it.total==null?null:it.total*signo(it);
+  return '<tr class="'+(d?'done':'')+'"><td><input class="chk" type="checkbox" id="c'+it.id+'" data-k="'+it.id+'"'+(d?' checked':'')+' aria-label="Marcar como cargado"></td>'+
+    '<td>'+prestador(it)+'</td><td>'+cp(cuitFmt(it.cuit),cuitDigits(it.cuit))+'</td><td>'+esc(mes(it.fecha))+'</td>'+
+    '<td>'+cp(nroFmt(it),nroFmt(it))+'<span class="sub">'+esc(tipoTxt(it))+'</span></td><td>'+cp(dmy(it.fecha),dmy(it.fecha))+'</td>'+
+    '<td class="r">'+cp(money(amt),amt==null?"":fmt.format(amt).replace(/\./g,""))+'</td></tr>';
+}
+function render(){
+  var html="", n=0, tot=0, ok=0;
+  ORDEN.forEach(function(k){
+    var list=items.filter(function(it){return it.estado==="ok"&&it.rubro===k}).sort(function(a,b){return (a.fecha||"").localeCompare(b.fecha||"")});
+    if(!list.length) return;
+    var rt=0; list.forEach(function(it){ rt+=(it.total||0)*signo(it); n++; if(done[it.id]) ok++ }); tot+=rt;
+    var R=RUBROS[k];
+    html+='<section class="rubro"><div class="rhead"><div><h3>'+esc(R.nombre)+'</h3><div class="path">En SiRADIG: <span>'+esc(R.ruta)+'</span></div></div>'+
+      '<div class="rtot"><b>'+money(rt)+'</b><small>'+list.length+' comprobante'+(list.length>1?'s':'')+'</small></div></div>'+
+      '<div class="rule">'+esc(R.regla)+'</div><div class="tbl"><table><thead><tr><th>Cargado</th><th>'+esc(R.col)+'</th><th>CUIT</th><th>Período</th><th>Comprobante</th><th>Fecha</th><th class="r">Monto</th></tr></thead><tbody>'+
+      list.map(row).join("")+'</tbody></table></div></section>';
+  });
+  $("rubros").innerHTML=html||'<div class="empty">Todavía no hay facturas deducibles listas para cargar. Subí las facturas del año o revisá las de abajo.</div>';
+  var rev=items.filter(function(it){return it.estado==="rev"}), no=items.filter(function(it){return it.estado==="no"});
+  $("pRev").innerHTML='<h3><span class="dot warn"></span>A revisar<small>'+rev.length+'</small></h3><ul>'+(rev.length?rev.map(function(it){
+    var n=nombre(it)||(it.cuit?"CUIT "+cuitFmt(it.cuit):"Sin CUIT");
+    return '<li><span><b>'+esc(n)+'</b>'+(it.ejemplo?'<span class="tag">Ejemplo</span>':'')+' · '+esc(tipoTxt(it))+(nroFmt(it)?' '+esc(nroFmt(it)):'')+
+      it.motivos.map(function(m){return '<span class="why">'+esc(m)+'</span>'}).join("")+(it.ejemplo?'':'<span class="why">'+esc(it.archivo)+'</span>')+mover(it)+'</span><span class="num">'+money(it.total)+'</span></li>' }).join(""):'<li class="none">Nada para revisar.</li>')+'</ul>';
+  $("pNo").innerHTML='<h3><span class="dot mute"></span>No deducibles<small>'+no.length+'</small></h3><ul>'+(no.length?no.map(function(it){
+    var n=nombre(it)||(it.cuit?"CUIT "+cuitFmt(it.cuit):it.archivo);
+    return '<li><span><b>'+esc(n)+'</b>'+(it.ejemplo?'<span class="tag">Ejemplo</span>':'')+'<span class="why">'+esc(it.motivos[0])+'</span>'+mover(it)+'</span><span class="num">'+money(it.total)+'</span></li>' }).join(""):'<li class="none">Ninguna.</li>')+'</ul>';
+  $("sCount").textContent=n; $("sTotal").textContent=money(tot); $("sRev").textContent=rev.length; $("sNo").textContent=no.length;
+  $("sRevBox").className=rev.length?"alert":"";
+  $("pBar").style.width=(n?ok/n*100:0)+"%";
+  $("pTxt").innerHTML="<b>"+ok+" de "+n+"</b> comprobantes cargados en SiRADIG";
+  $("cuilNote").hidden=cuitDigits(cuil).length===11||items.every(function(x){return x.ejemplo});
+}
+
+/* ---------- interacción ---------- */
+function copiar(v){
+  function fb(){ var ta=document.createElement("textarea"); ta.value=v; ta.style.cssText="position:fixed;left:0;top:0;opacity:0"; document.body.appendChild(ta); ta.select();
+    var ok=false; try{ok=document.execCommand("copy")}catch(x){} ta.remove(); toast(ok?"Copiado":"No se pudo copiar en este navegador") }
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(v).then(function(){toast(v.length>40?"Resumen copiado":"Copiado: "+v)},fb); else fb();
+}
+document.addEventListener("click",function(e){ var b=e.target.closest(".cp"); if(b) copiar(b.dataset.v) });
+document.addEventListener("change",function(e){
+  var t=e.target;
+  if(t.dataset.k){ done[t.dataset.k]=t.checked; render(); var c=$("c"+t.dataset.k); if(c) c.focus(); return }
+  if(t.dataset.mv){ var it=items.filter(function(x){return x.id===+t.dataset.mv})[0]; if(!it||!t.value) return;
+    it.rubroManual=t.value; if(!it.ejemplo&&it.cuit){ memo[cuitDigits(it.cuit)]=t.value; save("tilde.rubros",memo) }
+    evaluarTodo(); render(); toast(t.value==="no"?"Marcada como no deducible.":"Movida a "+RUBROS[t.value].nombre+"."); return }
+  if(t.dataset.nm!=null){ var c=t.dataset.nm; if(!c) return; if(t.value.trim()) agenda[c]=t.value.trim(); else delete agenda[c]; save("tilde.agenda",agenda); render() }
+});
+$("cuil").value=cuitFmt(cuil);
+$("cuil").addEventListener("change",function(e){
+  var v=cuitDigits(e.target.value); e.target.classList.toggle("badv",!!v&&!cuitOk(v));
+  if(v&&!cuitOk(v)){ toast("Ese CUIL no es válido. Revisá los 11 dígitos."); return }
+  cuil=v; e.target.value=cuitFmt(v); try{localStorage.setItem("tilde.cuil",v)}catch(x){} evaluarTodo(); render();
+});
+$("bCopy").addEventListener("click",function(){
+  var L=[];
+  ORDEN.forEach(function(k){ var list=items.filter(function(it){return it.estado==="ok"&&it.rubro===k}); if(!list.length) return;
+    L.push(RUBROS[k].nombre.toUpperCase());
+    list.forEach(function(it){ L.push([nombre(it)||"Sin nombre",cuitFmt(it.cuit),mes(it.fecha),tipoTxt(it)+" "+nroFmt(it),dmy(it.fecha),money((it.total||0)*signo(it))].join("\t")) });
+    L.push("") });
+  if(!L.length){ toast("No hay facturas listas para cargar."); return }
+  copiar(L.join("\n"));
+});
+$("bClear").addEventListener("click",function(){ items=[]; done={}; $("exNote").hidden=true; render() });
+var drop=$("drop");
+$("file").addEventListener("change",function(e){handle(e.target.files); e.target.value=""});
+["dragenter","dragover"].forEach(function(n){drop.addEventListener(n,function(e){e.preventDefault(); drop.classList.add("over")})});
+["dragleave","drop"].forEach(function(n){drop.addEventListener(n,function(e){e.preventDefault(); drop.classList.remove("over")})});
+drop.addEventListener("drop",function(e){ if(e.dataTransfer) handle(e.dataTransfer.files) });
+window.addEventListener("dragover",function(e){e.preventDefault()});
+window.addEventListener("drop",function(e){e.preventDefault()});
+
+/* ---------- ejemplos ---------- */
+function ex(o){ o.id=++seq; o.ejemplo=true; o.moneda="PES"; o.origen="QR"; o.archivo=""; o.texto=""; return o }
+items=[
+  ex({nombre:"Inmobiliaria Del Sol S.R.L.",cuit:mkCuit("3071234567"),rubroAuto:"alquiler",tipoCod:11,pv:"2",nro:"1907",fecha:"2026-10-03",total:620000}),
+  ex({nombre:"Inmobiliaria Del Sol S.R.L.",cuit:mkCuit("3071234567"),rubroAuto:"alquiler",tipoCod:11,pv:"2",nro:"1966",fecha:"2026-11-04",total:620000}),
+  ex({nombre:"Jardín de Infantes Las Lomas",cuit:mkCuit("3061234567"),rubroAuto:"educacion",tipoCod:11,pv:"5",nro:"9811",fecha:"2026-11-03",total:32963.4}),
+  ex({nombre:"Dra. Mariana López",cuit:mkCuit("2728123456"),rubroAuto:"medicos",tipoCod:11,pv:"3",nro:"412",fecha:"2026-08-19",total:95000}),
+  ex({nombre:"Kinesiología Centro",cuit:mkCuit("2029338616"),rubroAuto:"medicos",tipoCod:11,pv:"4",nro:"90",fecha:"2026-05-03",total:60000,recepEj:"otro",docNro:"3392…"}),
+  ex({nombre:"Gas del Sur",cuit:mkCuit("3065706428"),rubroAuto:"no",motivoNo:"Servicios del hogar: no deducibles.",tipoCod:18,pv:"",nro:"",fecha:"2026-10-19",total:158897.59})
+];
+evaluarTodo(); render();
+})();
+</script>
+
+</body>
+</html>
