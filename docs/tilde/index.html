@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Subí facturas en PDF o foto y obtené una planilla con los datos leídos del QR de ARCA.">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Tilde Facturas</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: cabecera fina, hero en dos columnas (promesa + zona de carga), y debajo la mesa de trabajo:
+   resumen, acciones y una fila por comprobante con el recuadro de letra (A/B/C) de las facturas argentinas. */
+:root{
+  --bg:#F2F4F8; --surface:#FFFFFF; --sunk:#E9EDF4; --ink:#0C1A33; --muted:#586680; --line:#D9E0EB;
+  --brand:#1746D1; --brand-soft:#E4EAFC; --on-brand:#FFFFFF;
+  --ok:#0B7D56; --ok-soft:#DDF3EA; --warn:#96610A; --warn-soft:#FBEFD2; --bad:#B8322A; --bad-soft:#FBE3E0;
+  --shadow:0 1px 2px rgba(12,26,51,.06),0 8px 24px -12px rgba(12,26,51,.18);
+  --display:"Bricolage Grotesque","IBM Plex Sans",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0A111E; --surface:#111A2B; --sunk:#182338; --ink:#E7ECF6; --muted:#93A1BA; --line:#25324B;
+  --brand:#7C9BFF; --brand-soft:#1B2A52; --on-brand:#0A111E;
+  --ok:#45CF99; --ok-soft:#123327; --warn:#E8B95A; --warn-soft:#3A2D10; --bad:#F27C72; --bad-soft:#3E1B18;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6); color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0A111E; --surface:#111A2B; --sunk:#182338; --ink:#E7ECF6; --muted:#93A1BA; --line:#25324B;
+  --brand:#7C9BFF; --brand-soft:#1B2A52; --on-brand:#0A111E;
+  --ok:#45CF99; --ok-soft:#123327; --warn:#E8B95A; --warn-soft:#3A2D10; --bad:#F27C72; --bad-soft:#3E1B18;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6); color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
+.wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:6px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-block:18px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;font:700 20px/1 var(--display);letter-spacing:-.01em}
+.brand svg{width:28px;height:28px}
+.priv{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.priv::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok)}
+
+.hero{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:32px;align-items:center}
+h1{font:700 clamp(32px,5.2vw,52px)/1.04 var(--display);letter-spacing:-.025em;margin:0 0 14px;text-wrap:balance}
+h1 em{font-style:normal;color:var(--brand)}
+.lead{font-size:17px;color:var(--muted);max-width:46ch;margin:0}
+.facts{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px;padding:0;list-style:none}
+.facts li{font-size:13px;font-weight:500;padding:5px 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface)}
+
+.drop{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;cursor:pointer;
+  background:var(--surface);border:1.5px dashed var(--brand);border-radius:16px;padding:32px 20px;box-shadow:var(--shadow);transition:background .15s}
+.drop.over{background:var(--brand-soft)}
+.drop svg{width:40px;height:40px;color:var(--brand)}
+.drop strong{font:600 18px/1.2 var(--display)}
+.drop small{color:var(--muted);font-size:13px}
+.drop input{position:absolute;width:1px;height:1px;opacity:0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);background:var(--surface);
+  border-radius:10px;padding:9px 14px;font-weight:600;font-size:14px;cursor:pointer;min-height:40px}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+.progress{font-size:13px;color:var(--brand);font-weight:600;min-height:20px}
+
+.sum{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.sum div{padding:14px 16px;border-left:1px solid var(--line);min-width:0}
+.sum div:first-child{border-left:0}
+.sum dt{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.sum dd{margin:4px 0 0;font:600 18px/1.2 var(--mono);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.sum .alert dd{color:var(--bad)}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.bar h2{font:700 22px/1.1 var(--display);margin:0;letter-spacing:-.01em}
+.bar .acts{display:flex;gap:8px;flex-wrap:wrap}
+.note{font-size:13px;color:var(--warn);background:var(--warn-soft);border-radius:10px;padding:9px 12px}
+
+.list{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.cols,.rh{display:grid;grid-template-columns:44px minmax(0,1.7fr) 92px repeat(3,minmax(0,.8fr)) 104px;gap:14px;align-items:center;padding:12px 16px}
+.cols{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);background:var(--sunk);padding-block:9px}
+.cols .r,.rh .r{text-align:right}
+article{border-top:1px solid var(--line)}
+.rh{width:100%;background:none;border:0;text-align:left;cursor:pointer}
+.rh:hover{background:var(--sunk)}
+.lb{width:40px;height:44px;border:1.5px solid var(--ink);border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+.lb b{font:700 20px/1 var(--display)}
+.lb i{font:500 8px/1 var(--mono);font-style:normal;margin-top:3px;color:var(--muted)}
+.who{min-width:0;display:flex;flex-direction:column;gap:2px}
+.rs{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sub{font-size:12.5px;color:var(--muted);font-family:var(--mono);overflow-wrap:anywhere}
+.m-only{display:none}
+.tot{font-weight:600}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 9px;border-radius:999px;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.ok{color:var(--ok);background:var(--ok-soft)} .pill.warn{color:var(--warn);background:var(--warn-soft)} .pill.bad{color:var(--bad);background:var(--bad-soft)}
+.tag{font:600 10px/1 var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:2px 5px;margin-left:6px;vertical-align:middle}
+
+.det{padding:4px 16px 18px;display:flex;flex-direction:column;gap:14px;background:var(--sunk)}
+.checks{list-style:none;margin:0;padding:12px 0 0;display:flex;flex-direction:column;gap:6px;font-size:13.5px}
+.checks li{display:flex;gap:8px;align-items:baseline}
+.checks li::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:var(--muted);transform:translateY(-1px)}
+.checks .ok::before{background:var(--ok)} .checks .warn::before{background:var(--warn)} .checks .bad::before{background:var(--bad)}
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.fields label{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);min-width:0}
+.fields .wide{grid-column:span 2}
+.fields input,.fields select{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--ink);width:100%;min-width:0}
+.fields input.num{text-align:right}
+.detfoot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.empty{padding:36px 16px;text-align:center;color:var(--muted)}
+
+.how{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.how section{border-top:2px solid var(--ink);padding-top:12px}
+.how h3{font:700 16px/1.2 var(--display);margin:0 0 6px}
+.how p{margin:0;color:var(--muted);font-size:14px}
+.fine{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:16px;margin:0}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);
+  padding:10px 16px;border-radius:10px;font-size:14px;font-weight:500;box-shadow:var(--shadow);max-width:calc(100% - 32px);z-index:20}
+
+@media (max-width:760px){
+  .hero{grid-template-columns:1fr;gap:22px}
+  .sum{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .sum div{border-left:0;border-top:1px solid var(--line)}
+  .sum div:nth-child(-n+2){border-top:0}
+  .sum div:nth-child(even){border-left:1px solid var(--line)}
+  .sum div:last-child{grid-column:span 2;border-left:0}
+  .cols{display:none}
+  .rh{grid-template-columns:40px minmax(0,1fr) auto;grid-template-areas:"lb who tot" "lb who st";gap:4px 12px}
+  .rh .lb{grid-area:lb} .rh .who{grid-area:who} .rh .tot{grid-area:tot} .rh .st{grid-area:st;justify-self:end}
+  .rh .fecha,.rh .neto,.rh .iva{display:none}
+  .m-only{display:inline}
+  .how{grid-template-columns:1fr}
+  .fields{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .bar .acts{width:100%} .bar .acts .btn{flex:1}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 28 28" aria-hidden="true"><rect x="1.5" y="1.5" width="25" height="25" rx="6" fill="var(--brand)"/><path d="M8 14.5l4.2 4.2L20.5 9.8" fill="none" stroke="var(--on-brand)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Tilde
+    </div>
+    <div class="priv">Se procesa en tu navegador. Ningún archivo se sube.</div>
+  </header>
+
+  <div class="hero">
+    <div>
+      <h1>Subí la factura.<br><em>Llevate la planilla.</em></h1>
+      <p class="lead">Tilde lee el QR de ARCA y el texto del PDF, controla el CUIT y que los importes cierren, y te deja cada comprobante listo para Excel.</p>
+      <ul class="facts"><li>Facturas A, B y C</li><li>Notas de crédito y débito</li><li>IVA por alícuota</li><li>Varias a la vez</li></ul>
+    </div>
+    <label class="drop" id="drop" for="file">
+      <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5h13l7 7v21a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><path d="M24 5v7h7"/><path d="M20 28V18m0 0l-4 4m4-4l4 4"/></svg>
+      <strong>Arrastrá tus facturas acá</strong>
+      <small>PDF, JPG o PNG. Podés subir varias juntas.</small>
+      <span class="btn primary">Elegir archivos</span>
+      <span class="progress" id="progress" role="status" aria-live="polite"></span>
+      <input id="file" type="file" accept="application/pdf,image/*" multiple>
+    </label>
+  </div>
+
+  <dl class="sum" id="sum"></dl>
+
+  <div class="bar">
+    <h2>Comprobantes</h2>
+    <div class="acts">
+      <button class="btn primary" id="bXlsx">Descargar Excel</button>
+      <button class="btn" id="bCopy">Copiar para planilla</button>
+      <button class="btn ghost" id="bClear">Vaciar</button>
+    </div>
+  </div>
+  <div class="note" id="exNote">Estos tres comprobantes son ejemplos inventados para mostrar cómo queda. Se borran cuando subís tu primera factura.</div>
+
+  <div class="list">
+    <div class="cols"><span></span><span>Emisor</span><span>Fecha</span><span class="r">Neto</span><span class="r">IVA</span><span class="r">Total</span><span>Estado</span></div>
+    <div id="rows"></div>
+  </div>
+
+  <div class="how">
+    <section><h3>QR de ARCA</h3><p>Fecha, CUIT del emisor, tipo, punto de venta, número, total y CAE salen del código QR, tal como los informó el emisor.</p></section>
+    <section><h3>Texto del PDF</h3><p>Razón social, neto gravado, IVA de 21, 10,5 y 27 % y otros tributos se leen del texto del comprobante.</p></section>
+    <section><h3>Controles</h3><p>Dígito verificador del CUIT, neto más IVA contra el total, total del QR contra el del PDF y comprobantes repetidos.</p></section>
+  </div>
+  <p class="fine">En fotos y PDF escaneados se lee solo el QR: neto e IVA se completan a mano tocando la fila. Los tickets sin QR no se pueden leer automáticamente.</p>
+</div>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function(){
+"use strict";
+var $=function(id){return document.getElementById(id)};
+var TIPOS={1:["Factura","A"],2:["Nota de débito","A"],3:["Nota de crédito","A"],6:["Factura","B"],7:["Nota de débito","B"],8:["Nota de crédito","B"],
+  11:["Factura","C"],12:["Nota de débito","C"],13:["Nota de crédito","C"],51:["Factura","M"],52:["Nota de débito","M"],53:["Nota de crédito","M"],
+  201:["Factura de crédito","A"],203:["Nota de crédito FCE","A"],206:["Factura de crédito","B"],208:["Nota de crédito FCE","B"],211:["Factura de crédito","C"],213:["Nota de crédito FCE","C"]};
+var NUMF=["neto","iva21","iva105","iva27","ivaOtras","otros","total"];
+var rows=[], openId=null, seq=0, busy=false;
+var dlCap=(window.claude&&window.claude.use)?window.claude.use("downloads").catch(function(){return null}):Promise.resolve(null);
+
+/* ---------- utilidades ---------- */
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function num(s){ if(s==null) return null; s=String(s).replace(/[^\d.,-]/g,""); if(!s) return null;
+  if(s.indexOf(",")>-1) s=s.replace(/\./g,"").replace(",",".");
+  else if((s.match(/\./g)||[]).length>1) s=s.replace(/\./g,"");
+  var n=parseFloat(s); return isFinite(n)?n:null }
+var fmt=new Intl.NumberFormat("es-AR",{minimumFractionDigits:2,maximumFractionDigits:2});
+function money(n){return n==null?"—":"$ "+fmt.format(n)}
+function plain(n){return n==null?"":fmt.format(n).replace(/\./g,"")}
+function dmy(iso){ if(!iso) return ""; var p=iso.split("-"); return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:iso }
+function pad(n,l){n=String(n==null?"":n).replace(/\D/g,""); return n?n.padStart(l,"0"):""}
+function nroFmt(r){var a=pad(r.pv,5),b=pad(r.nro,8); return (a||b)?(a||"?????")+"-"+(b||"????????"):"sin número"}
+function cuitDigits(c){return String(c||"").replace(/\D/g,"")}
+function cuitFmt(c){c=cuitDigits(c); return c.length===11?c.slice(0,2)+"-"+c.slice(2,10)+"-"+c.slice(10):c}
+function cuitOk(c){ c=cuitDigits(c); if(c.length!==11) return false; var w=[5,4,3,2,7,6,5,4,3,2],s=0;
+  for(var i=0;i<10;i++) s+=(+c[i])*w[i]; var d=11-(s%11); if(d===11) d=0; return d!==10 && d===+c[10] }
+function mkCuit(base){ for(var k=0;k<10;k++){ for(var d=0;d<10;d++){ if(cuitOk(base+d)) return base+d } base=String(+base+1) } return base+"0" }
+function ivaSum(r){return (r.iva21||0)+(r.iva105||0)+(r.iva27||0)+(r.ivaOtras||0)}
+function hasIva(r){return r.iva21!=null||r.iva105!=null||r.iva27!=null||r.ivaOtras!=null}
+function tipoInfo(r){return TIPOS[r.tipoCod]||["Comprobante","?"]}
+function toast(msg){var t=$("toast"); t.textContent=msg; t.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(function(){t.hidden=true},3800)}
+
+/* ---------- controles ---------- */
+function validate(r){
+  var c=[], letra=tipoInfo(r)[1];
+  if(!r.cuit) c.push(["warn","Falta el CUIT del emisor."]);
+  else if(!cuitOk(r.cuit)) c.push(["bad","El CUIT no pasa el dígito verificador."]);
+  else c.push(["ok","CUIT válido."]);
+  if(r.total==null) c.push(["bad","Falta el importe total."]);
+  if(r.qrTotal!=null && r.pdfTotal!=null && Math.abs(r.qrTotal-r.pdfTotal)>0.05)
+    c.push(["bad","El total del QR ("+money(r.qrTotal)+") no coincide con el del PDF ("+money(r.pdfTotal)+")."]);
+  if(r.neto!=null && r.total!=null){
+    var calc=r.neto+ivaSum(r)+(r.otros||0), dif=Math.round((r.total-calc)*100)/100;
+    if(Math.abs(dif)>0.05) c.push(["bad","Neto + IVA + otros da "+money(calc)+" y el total dice "+money(r.total)+". Diferencia: "+money(dif)+"."]);
+    else c.push(["ok","Neto + IVA + otros coincide con el total."]);
+  } else if(r.total!=null && (letra==="A"||letra==="M")) c.push(["warn","Falta el neto y el IVA discriminado. Completalos acá abajo."]);
+  if(!r.fecha) c.push(["warn","Falta la fecha de emisión."]);
+  if(!r.pv||!r.nro) c.push(["warn","Falta el punto de venta o el número."]);
+  if(!r.razon) c.push(["warn","Falta la razón social del emisor."]);
+  if(r.cae && String(r.cae).length!==14) c.push(["warn","El CAE debería tener 14 dígitos."]);
+  if(r.dup) c.push(["warn","Este comprobante está repetido en la lista."]);
+  (r.notes||[]).forEach(function(n){c.push(n)});
+  r.checks=c;
+  r.status=c.some(function(x){return x[0]==="bad"})?"bad":c.some(function(x){return x[0]==="warn"})?"warn":"ok";
+}
+function validateAll(){
+  var seen={};
+  rows.forEach(function(r){ var k=cuitDigits(r.cuit)+"|"+r.tipoCod+"|"+pad(r.pv,5)+"|"+pad(r.nro,8);
+    r.dup=!!(r.cuit&&r.nro&&seen[k]); seen[k]=true; });
+  rows.forEach(validate);
+}
+
+/* ---------- lectura ---------- */
+function parseQR(text){
+  var m=/[?&]p=([^&#\s]+)/.exec(text||""); if(!m) return null;
+  try{
+    var b=decodeURIComponent(m[1]).replace(/-/g,"+").replace(/_/g,"/"); while(b.length%4) b+="=";
+    var raw=atob(b), js; try{js=decodeURIComponent(escape(raw))}catch(e){js=raw}
+    var o=JSON.parse(js); if(o.cuit==null&&o.importe==null) return null;
+    return {fecha:o.fecha||null,cuit:o.cuit!=null?String(o.cuit):null,pv:o.ptoVta,tipoCod:+o.tipoCmp||null,nro:o.nroCmp,
+      total:o.importe!=null?+o.importe:null,moneda:o.moneda||"PES",cae:o.codAut!=null?String(o.codAut):null};
+  }catch(e){return null}
+}
+function scanQR(src,w,h){
+  if(typeof jsQR==="undefined") return null;
+  var regs=[[0,0,1,1],[0,.5,.6,.5],[0,.55,1,.45],[.4,.5,.6,.5],[0,0,.6,.5],[.4,0,.6,.5],[.2,.25,.6,.5]];
+  var cv=document.createElement("canvas"), cx=cv.getContext("2d",{willReadFrequently:true});
+  for(var i=0;i<regs.length;i++){
+    var g=regs[i], sw=w*g[2], sh=h*g[3], k=Math.min(2,1800/Math.max(sw,sh));
+    cv.width=Math.max(1,Math.round(sw*k)); cv.height=Math.max(1,Math.round(sh*k));
+    cx.fillStyle="#fff"; cx.fillRect(0,0,cv.width,cv.height);
+    cx.drawImage(src,w*g[0],h*g[1],sw,sh,0,0,cv.width,cv.height);
+    var d=cx.getImageData(0,0,cv.width,cv.height), q=jsQR(d.data,cv.width,cv.height);
+    if(q&&q.data){ var p=parseQR(q.data); if(p) return p }
+  }
+  return null;
+}
+function pick(t,re){var m=re.exec(t); return m?num(m[1]):null}
+function parseText(t){
+  var o={}, m;
+  var N="\\s*:?\\s*\\$?\\s*(-?[\\d.]*\\d(?:,\\d+)?)";
+  o.neto=pick(t,new RegExp("Importe\\s+Neto\\s+Gravado"+N,"i"));
+  o.iva21=pick(t,new RegExp("IVA\\s+21\\s*%"+N,"i"));
+  o.iva105=pick(t,new RegExp("IVA\\s+10[.,]5\\s*%"+N,"i"));
+  o.iva27=pick(t,new RegExp("IVA\\s+27\\s*%"+N,"i"));
+  var i5=pick(t,new RegExp("IVA\\s+5\\s*%"+N,"i")), i25=pick(t,new RegExp("IVA\\s+2[.,]5\\s*%"+N,"i"));
+  o.ivaOtras=(i5||i25)?(i5||0)+(i25||0):null;
+  var ot=pick(t,new RegExp("Importe\\s+Otros\\s+Tributos"+N,"i")), ng=pick(t,new RegExp("(?:Neto\\s+No\\s+Gravado|Conceptos\\s+No\\s+Gravados)"+N,"i")),
+      ex=pick(t,new RegExp("(?:Importe\\s+Exento|Op\\.?\\s*Exentas?)"+N,"i"));
+  o.otros=(ot||ng||ex)?(ot||0)+(ng||0)+(ex||0):null;
+  o.total=pick(t,new RegExp("Importe\\s+Total"+N,"i"));
+  ["iva21","iva105","iva27"].forEach(function(k){ if(o[k]===0) o[k]=null });
+  if((m=/Raz[oó]n\s+Social:\s*(.+?)\s*(?=\n|Domicilio|Fecha\s+de|CUIT|Condici[oó]n|Ingresos|$)/i.exec(t))) o.razon=m[1].trim().slice(0,90);
+  if((m=/Fecha\s+de\s+Emisi[oó]n:?\s*(\d{2})\/(\d{2})\/(\d{4})/i.exec(t))) o.fecha=m[3]+"-"+m[2]+"-"+m[1];
+  if((m=/Punto\s+de\s+Venta:?\s*(\d{1,5})\s*Comp\.?\s*Nro\.?:?\s*(\d{1,8})/i.exec(t))){o.pv=m[1];o.nro=m[2]}
+  if((m=/CUIT:?\s*(\d{2}-?\d{8}-?\d)\b/i.exec(t))) o.cuit=cuitDigits(m[1]);
+  if((m=/CAE\s*N?[°ºo.]*\s*:?\s*(\d{14})/i.exec(t))) o.cae=m[1];
+  if((m=/COD\.?\s*0*(\d{1,3})\b/i.exec(t))) o.tipoCod=+m[1];
+  return o;
+}
+function build(file,qr,tx,kind){
+  tx=tx||{}; var r={id:++seq,archivo:file.name,notes:[]};
+  r.fecha=(qr&&qr.fecha)||tx.fecha||null;
+  r.tipoCod=(qr&&qr.tipoCod)||tx.tipoCod||null;
+  r.pv=(qr&&qr.pv!=null)?qr.pv:tx.pv; r.nro=(qr&&qr.nro!=null)?qr.nro:tx.nro;
+  r.cuit=(qr&&qr.cuit)||tx.cuit||null; r.razon=tx.razon||"";
+  NUMF.forEach(function(k){r[k]=tx[k]!=null?tx[k]:null});
+  r.qrTotal=qr?qr.total:null; r.pdfTotal=tx.total!=null?tx.total:null;
+  if(qr&&qr.total!=null) r.total=qr.total;
+  r.moneda=(qr&&qr.moneda)||"PES"; r.cae=(qr&&qr.cae)||tx.cae||"";
+  var gotText=Object.keys(tx).some(function(k){return tx[k]!=null});
+  r.origen=qr&&gotText?"QR + texto del PDF":qr?"Solo QR":gotText?"Solo texto del PDF":"Sin lectura";
+  if(!qr&&gotText) r.notes.push(["warn","No se encontró el QR de ARCA: los datos salen solo del texto."]);
+  if(qr&&!gotText) r.notes.push(["warn",kind==="img"?"Es una foto: se leyó solo el QR.":"El PDF no tiene texto legible: se leyó solo el QR."]);
+  if(!qr&&!gotText) r.notes.push(["bad","No se encontró QR ni texto. Cargá los datos a mano."]);
+  return r;
+}
+function readBuf(file){return new Promise(function(ok,ko){var f=new FileReader(); f.onload=function(){ok(f.result)}; f.onerror=function(){ko(f.error)}; f.readAsArrayBuffer(file)})}
+async function readPdf(file){
+  if(typeof pdfjsLib==="undefined") throw new Error("pdf");
+  pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  var doc=await pdfjsLib.getDocument({data:await readBuf(file)}).promise, page=await doc.getPage(1);
+  var tc=await page.getTextContent(), t="";
+  tc.items.forEach(function(it){t+=it.str+(it.hasEOL?"\n":" ")});
+  var qr=null;
+  try{ var vp=page.getViewport({scale:2.5}), cv=document.createElement("canvas"); cv.width=Math.ceil(vp.width); cv.height=Math.ceil(vp.height);
+    var cx=cv.getContext("2d"); cx.fillStyle="#fff"; cx.fillRect(0,0,cv.width,cv.height);
+    await page.render({canvasContext:cx,viewport:vp}).promise; qr=scanQR(cv,cv.width,cv.height); }catch(e){}
+  return build(file,qr,parseText(t),"pdf");
+}
+function readImg(file){return new Promise(function(ok,ko){
+  var url=URL.createObjectURL(file), im=new Image();
+  im.onload=function(){ var qr=null; try{qr=scanQR(im,im.naturalWidth,im.naturalHeight)}catch(e){} URL.revokeObjectURL(url); ok(build(file,qr,null,"img")) };
+  im.onerror=function(){URL.revokeObjectURL(url); ko(new Error("img"))}; im.src=url; })}
+async function handle(files){
+  files=Array.prototype.slice.call(files||[]); if(!files.length||busy) return; busy=true;
+  if(rows.some(function(r){return r.ejemplo})){rows=[]; $("exNote").hidden=true}
+  var bad=0, last=null;
+  for(var i=0;i<files.length;i++){
+    var f=files[i]; $("progress").textContent="Leyendo "+(i+1)+" de "+files.length+"…";
+    try{
+      var isPdf=f.type==="application/pdf"||/\.pdf$/i.test(f.name);
+      var r=isPdf?await readPdf(f):await readImg(f); rows.push(r); last=r;
+    }catch(e){ bad++ }
+    validateAll(); render();
+  }
+  $("progress").textContent=""; busy=false;
+  if(last&&last.status!=="ok"){openId=last.id; render()}
+  var okN=files.length-bad;
+  toast(bad?(okN+" leídas. "+bad+" no se pudieron abrir: revisá que sean PDF o imagen."):(okN===1?"Factura leída.":okN+" facturas leídas."));
+}
+
+/* ---------- vista ---------- */
+var PILL={ok:"Listo",warn:"Revisar",bad:"Con error"};
+function headHTML(r){
+  var ti=tipoInfo(r), iva=hasIva(r)?ivaSum(r):null;
+  return '<span class="lb"><b>'+esc(ti[1])+'</b><i>'+(r.tipoCod?"COD "+pad(r.tipoCod,2):"")+'</i></span>'+
+    '<span class="who"><span class="rs">'+esc(r.razon||"Emisor sin identificar")+(r.ejemplo?'<span class="tag">Ejemplo</span>':'')+'</span>'+
+    '<span class="sub"><span class="m-only">'+esc(dmy(r.fecha))+' · </span>'+esc(ti[0])+' '+esc(nroFmt(r))+(r.cuit?' · '+esc(cuitFmt(r.cuit)):'')+'</span></span>'+
+    '<span class="num fecha">'+esc(dmy(r.fecha)||"—")+'</span><span class="num r neto">'+money(r.neto)+'</span><span class="num r iva">'+money(iva)+'</span>'+
+    '<span class="num r tot">'+money(r.total)+'</span><span class="st"><span class="pill '+r.status+'">'+PILL[r.status]+'</span></span>';
+}
+function checksHTML(r){return r.checks.map(function(c){return '<li class="'+c[0]+'">'+esc(c[1])+'</li>'}).join("")}
+function field(r,k,label,cls,type){
+  var v=NUMF.indexOf(k)>-1?plain(r[k]):k==="cuit"?cuitFmt(r.cuit):(r[k]==null?"":r[k]);
+  return '<label'+(cls==="wide"?' class="wide"':'')+'>'+label+'<input id="f'+r.id+k+'" data-k="'+k+'" '+(NUMF.indexOf(k)>-1?'class="num" inputmode="decimal" ':'')+
+    'type="'+(type||"text")+'" value="'+esc(v)+'" autocomplete="off"></label>';
+}
+function detHTML(r){
+  var opts=Object.keys(TIPOS).map(function(c){return '<option value="'+c+'"'+(+c===r.tipoCod?" selected":"")+'>'+TIPOS[c][0]+" "+TIPOS[c][1]+'</option>'}).join("");
+  return '<div class="det"><ul class="checks">'+checksHTML(r)+'</ul><div class="fields">'+
+    field(r,"razon","Razón social","wide")+field(r,"cuit","CUIT emisor")+
+    '<label>Tipo<select id="f'+r.id+'tipoCod" data-k="tipoCod"><option value="">Sin definir</option>'+opts+'</select></label>'+
+    field(r,"fecha","Fecha","","date")+field(r,"pv","Punto de venta")+field(r,"nro","Número")+
+    field(r,"neto","Neto gravado")+field(r,"iva21","IVA 21 %")+field(r,"iva105","IVA 10,5 %")+field(r,"iva27","IVA 27 %")+
+    field(r,"ivaOtras","IVA otras")+field(r,"otros","Otros / no gravado")+field(r,"total","Total")+field(r,"cae","CAE")+
+    '</div><div class="detfoot"><span>'+esc(r.archivo)+' · '+esc(r.origen)+'</span><button class="btn" data-del="'+r.id+'">Quitar de la lista</button></div></div>';
+}
+function sumHTML(){
+  var t={n:0,i:0,t:0,rev:0};
+  rows.forEach(function(r){ var s=/crédito/i.test(tipoInfo(r)[0])&&!/Factura/.test(tipoInfo(r)[0])?-1:1;
+    t.n+=s*(r.neto||0); t.i+=s*ivaSum(r); t.t+=s*(r.total||0); if(r.status!=="ok") t.rev++ });
+  return '<div><dt>Comprobantes</dt><dd>'+rows.length+'</dd></div><div><dt>Neto gravado</dt><dd>'+money(t.n)+'</dd></div>'+
+    '<div><dt>IVA crédito</dt><dd>'+money(t.i)+'</dd></div><div><dt>Total</dt><dd>'+money(t.t)+'</dd></div>'+
+    '<div'+(t.rev?' class="alert"':'')+'><dt>A revisar</dt><dd>'+t.rev+'</dd></div>';
+}
+function render(){
+  $("sum").innerHTML=sumHTML();
+  $("rows").innerHTML=rows.length?rows.map(function(r){
+    var op=r.id===openId;
+    return '<article data-id="'+r.id+'"><button class="rh" aria-expanded="'+op+'">'+headHTML(r)+'</button>'+(op?detHTML(r):'')+'</article>';
+  }).join(""):'<div class="empty">Todavía no hay comprobantes. Subí una factura para empezar.</div>';
+  var none=!rows.length; $("bXlsx").disabled=none; $("bCopy").disabled=none; $("bClear").disabled=none;
+}
+function refresh(){
+  $("sum").innerHTML=sumHTML();
+  rows.forEach(function(r){ var a=$("rows").querySelector('article[data-id="'+r.id+'"]'); if(!a) return;
+    a.querySelector(".rh").innerHTML=headHTML(r); var c=a.querySelector(".checks"); if(c) c.innerHTML=checksHTML(r) });
+}
+function byId(id){for(var i=0;i<rows.length;i++) if(rows[i].id===id) return rows[i]; return null}
+
+$("rows").addEventListener("click",function(e){
+  var del=e.target.closest("[data-del]");
+  if(del){ rows=rows.filter(function(r){return r.id!==+del.dataset.del}); openId=null; validateAll(); render(); return }
+  var h=e.target.closest(".rh"); if(!h) return;
+  var id=+h.parentNode.dataset.id; openId=openId===id?null:id; render();
+  var b=$("rows").querySelector('article[data-id="'+id+'"] .rh'); if(b) b.focus();
+});
+$("rows").addEventListener("change",function(e){
+  var k=e.target.dataset.k, a=e.target.closest("article"); if(!k||!a) return;
+  var r=byId(+a.dataset.id); if(!r) return; var v=e.target.value.trim();
+  if(NUMF.indexOf(k)>-1){ r[k]=num(v); e.target.value=plain(r[k]); if(k==="total"){r.qrTotal=null;r.pdfTotal=null} }
+  else if(k==="tipoCod") r.tipoCod=v?+v:null;
+  else if(k==="cuit"){ r.cuit=cuitDigits(v)||null; e.target.value=cuitFmt(r.cuit) }
+  else if(k==="pv"||k==="nro"||k==="cae") r[k]=v.replace(/\D/g,"");
+  else r[k]=v||(k==="fecha"?null:"");
+  r.notes=(r.notes||[]).filter(function(n){return n[0]!=="bad"||!/Cargá los datos/.test(n[1])});
+  validateAll(); refresh();
+});
+
+/* ---------- carga ---------- */
+var drop=$("drop");
+$("file").addEventListener("change",function(e){handle(e.target.files); e.target.value=""});
+["dragenter","dragover"].forEach(function(n){drop.addEventListener(n,function(e){e.preventDefault(); drop.classList.add("over")})});
+["dragleave","drop"].forEach(function(n){drop.addEventListener(n,function(e){e.preventDefault(); drop.classList.remove("over")})});
+drop.addEventListener("drop",function(e){ if(e.dataTransfer) handle(e.dataTransfer.files) });
+window.addEventListener("dragover",function(e){e.preventDefault()});
+window.addEventListener("drop",function(e){e.preventDefault()});
+
+/* ---------- salida ---------- */
+var HEAD=["Fecha","Tipo","Letra","Punto de venta","Número","CUIT emisor","Razón social","Neto gravado","IVA 21%","IVA 10,5%","IVA 27%","IVA otras","Otros conceptos","Total","Moneda","CAE","Estado","Observaciones","Archivo"];
+function rowOut(r){ var ti=tipoInfo(r);
+  return [dmy(r.fecha),ti[0],ti[1]==="?"?"":ti[1],pad(r.pv,5),pad(r.nro,8),cuitDigits(r.cuit),r.razon||"",r.neto,r.iva21,r.iva105,r.iva27,r.ivaOtras,r.otros,r.total,
+    r.moneda==="PES"?"ARS":(r.moneda||""),r.cae||"",PILL[r.status],r.checks.filter(function(c){return c[0]!=="ok"}).map(function(c){return c[1]}).join(" "),r.archivo] }
+$("bXlsx").addEventListener("click",async function(){
+  if(typeof XLSX==="undefined"){toast("No se pudo cargar el generador de Excel. Usá Copiar para planilla."); return}
+  var aoa=[HEAD].concat(rows.map(function(r){return rowOut(r).map(function(v){return v==null?"":v})}));
+  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"]=[10,18,6,10,10,13,34,14,12,12,12,12,14,14,8,16,10,50,28].map(function(w){return{wch:w}});
+  for(var R=1;R<aoa.length;R++) for(var C=7;C<=13;C++){var cell=ws[XLSX.utils.encode_cell({r:R,c:C})]; if(cell&&cell.t==="n") cell.z="#,##0.00"}
+  var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Compras");
+  var buf=XLSX.write(wb,{bookType:"xlsx",type:"array"}), name="facturas-"+new Date().toISOString().slice(0,10)+".xlsx";
+  var cap=await dlCap;
+  if(cap){ try{ await cap.save({filename:name,data:buf}); toast("Excel guardado.") }
+    catch(err){ toast(err&&err.code==="declined"?"Descarga cancelada.":"No se pudo guardar el Excel acá. Usá Copiar para planilla.") } return }
+  try{ var a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
+    a.download=name; document.body.appendChild(a); a.click(); a.remove(); toast("Si la descarga no arrancó, usá Copiar para planilla.") }
+  catch(e2){ toast("No se pudo descargar. Usá Copiar para planilla.") }
+});
+$("bCopy").addEventListener("click",function(){
+  var tsv=[HEAD].concat(rows.map(function(r){return rowOut(r).map(function(v){return typeof v==="number"?plain(v):String(v==null?"":v).replace(/[\t\n]/g," ")})}))
+    .map(function(l){return l.join("\t")}).join("\n");
+  function fb(){ var ta=document.createElement("textarea"); ta.value=tsv; ta.style.cssText="position:fixed;left:0;top:0;opacity:0"; document.body.appendChild(ta); ta.select();
+    var ok=false; try{ok=document.execCommand("copy")}catch(e){} ta.remove(); toast(ok?"Copiado. Pegalo en Excel o Google Sheets.":"No se pudo copiar en este navegador.") }
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(tsv).then(function(){toast("Copiado. Pegalo en Excel o Google Sheets.")},fb); else fb();
+});
+$("bClear").addEventListener("click",function(){ rows=[]; openId=null; $("exNote").hidden=true; render() });
+
+/* ---------- ejemplos ---------- */
+function ex(o){o.id=++seq; o.ejemplo=true; o.notes=o.notes||[]; o.moneda="PES"; NUMF.forEach(function(k){if(o[k]===undefined) o[k]=null}); return o}
+rows=[
+  ex({archivo:"factura-distribuidora.pdf",origen:"QR + texto del PDF",fecha:"2026-11-03",tipoCod:1,pv:3,nro:1482,cuit:mkCuit("3071458892"),razon:"Distribuidora del Sur S.R.L.",neto:184500,iva21:38745,total:223245,qrTotal:223245,pdfTotal:223245,cae:"76451203384512"}),
+  ex({archivo:"papelera-noviembre.pdf",origen:"QR + texto del PDF",fecha:"2026-11-07",tipoCod:1,pv:12,nro:30917,cuit:mkCuit("3070921645"),razon:"Papelera Bahiense S.A.",neto:62300,iva21:13083,otros:1869,total:77525,cae:"76459981120347"}),
+  ex({archivo:"foto-ferreteria.jpg",origen:"Solo QR",fecha:"2026-11-10",tipoCod:1,pv:5,nro:8841,cuit:mkCuit("3071602219"),razon:"",total:41140,cae:"76460077415529",notes:[["warn","Es una foto: se leyó solo el QR."]]})
+];
+openId=rows[1].id; validateAll(); render();
+})();
+</script>
+
+</body>
+</html>
